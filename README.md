@@ -15,6 +15,7 @@ It was built as a take-home AI Engineer project, with emphasis on **frontend + b
 ## 📂 Project Tree
 Download the package and run in terminal
 ├── main.py # FastAPI backend (API + static serving)
+├── Censys.ipnyb (Analysis of the dataset using Jupyter notebook with a comprehensive and graph illustration)
 ├── index.html # Frontend UI (simple HTML + JS)
 ├── hosts_dataset.json # Sample Censys host dataset
 ├── summaries.csv # Example CSV output of summaries
