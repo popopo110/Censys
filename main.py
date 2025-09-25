@@ -1,17 +1,44 @@
-const API = 'https://<your-backend-host>.onrender.com'; // <-- replace
+# main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
 
-async function run() {
-  const records = /* array of host objects */;
-  const model = 'gpt-4o-mini';
-  const temperature = 0.2;
+app = FastAPI()
 
-  const res = await fetch(`${API}/api/summarize-batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ records, model, temperature })
-  });
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # dev-friendly; tighten in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  const text = await res.text();
-  const data = JSON.parse(text); // show errors if parse fails
-  console.log(data);
-}
+class Record(BaseModel):
+    ip: Optional[str] = None
+    open_ports: List[int] = Field(default_factory=list)
+    location: Optional[Dict[str, Any]] = None
+    services: List[Dict[str, Any]] = Field(default_factory=list)
+
+class BatchReq(BaseModel):
+    records: List[Record]
+    model: Optional[str] = "gpt-4o-mini"
+    temperature: Optional[float] = 0.2
+
+@app.post("/api/summarize-batch")
+def summarize_batch(req: BatchReq):
+    out = []
+    for r in req.records:
+        out.append({
+            **r.model_dump(),
+            "summary": {"text": f"Host {r.ip or 'unknown'} exposes {len(r.open_ports)} port(s)."}
+        })
+    return {"records": out}
+
+@app.get("/")
+def home():
+    return FileResponse("index.html")
+
+app.mount("/static", StaticFiles(directory="."), name="static")
