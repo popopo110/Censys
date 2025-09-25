@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Censys Agent – Minimal UI</title>
+  <!-- Tailwind via CDN for speed (ok for prototypes) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Small polish */
+    .card { @apply rounded-2xl shadow-sm border border-gray-200 bg-white; }
+    .chip { @apply text-xs px-2 py-1 rounded-full bg-gray-100 border border-gray-200; }
+    .kbd { @apply font-mono text-xs px-1.5 py-0.5 border rounded bg-gray-50; }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <header class="border-b bg-white">
+    <div class="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+      <h1 class="text-lg sm:text-2xl font-semibold tracking-tight">Censys Summarizer – Demo UI</h1>
+      <div class="flex items-center gap-2 text-sm text-gray-600">
+        <span class="hidden sm:inline">Agentic demo • paste / upload data • get summaries</span>
+        <a class="chip" href="#" id="btn-load-sample">Load sample</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left: input controls -->
+    <section class="card p-4 lg:col-span-1">
+      <h2 class="text-base font-semibold mb-3">Input</h2>
+      <p class="text-sm text-gray-600 mb-3">Provide host records (array of objects). Each object will be summarized by the backend agent.</p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium mb-1" for="file">Upload JSON (.json)</label>
+          <input id="file" type="file" accept="application/json" class="block w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-gray-900 file:text-white hover:file:bg-black" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="json">Or paste JSON</label>
+          <textarea id="json" rows="8" placeholder='[{"ip":"1.2.3.4","open_ports":[80,443],"location":{"country":"US"}}, ...]' class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-gray-900"></textarea>
+        </div>
+
+        <fieldset class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium mb-1" for="model">Model</label>
+            <select id="model" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-gray-900">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              <option value="qwen2.5:3b-instruct">qwen2.5:3b-instruct (ollama)</option>
+              <option value="phi3:mini">phi3:mini (ollama)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1" for="temperature">Temperature <span id="tempVal" class="text-xs text-gray-500"></span></label>
+            <input id="temperature" type="range" min="0" max="2" step="0.1" value="0.2" class="w-full">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1" for="endpoint">Backend Endpoint</label>
+            <input id="endpoint" type="text" value="/api/summarize-batch" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-gray-900" />
+            <p class="text-xs text-gray-500 mt-1">Expected POST schema: { records: [...], model?: string, temperature?: number }</p>
+          </div>
+        </fieldset>
+
+        <div class="flex items-center gap-2">
+          <button id="btn-run" class="inline-flex items-center gap-2 rounded-lg bg-gray-900 text-white px-4 py-2 hover:bg-black">Run <span class="kbd">⌘⏎</span></button>
+          <button id="btn-clear" class="rounded-lg border px-3 py-2">Clear</button>
+          <label class="ml-auto inline-flex items-center gap-2 text-sm">
+            <input id="demoMode" type="checkbox" class="rounded border-gray-300"> Demo mode (no backend)
+          </label>
+        </div>
+
+        <div id="status" class="text-sm text-gray-600"></div>
+      </div>
+    </section>
+
+    <!-- Right: results -->
+    <section class="lg:col-span-2 space-y-4">
+      <div class="card p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-semibold">Summaries</h2>
+          <div class="flex items-center gap-2 text-sm">
+            <button id="btn-copy-json" class="chip">Copy JSON</button>
+            <button id="btn-download-json" class="chip">Download</button>
+          </div>
+        </div>
+        <div id="results" class="mt-3 grid gap-3"></div>
+      </div>
+
+      <div class="card p-4">
+        <h3 class="text-sm font-semibold mb-2">How it works</h3>
+        <ol class="list-decimal ml-5 text-sm text-gray-700 space-y-1">
+          <li>Paste or upload Censys-like host records (array of objects).</li>
+          <li>Click <strong>Run</strong> to call your backend <span class="font-mono">POST /api/summarize-batch</span>.</li>
+          <li>The backend calls your LLM and returns structured summaries. UI renders them.</li>
+        </ol>
+        <div class="mt-2 text-xs text-gray-500">Tip: toggle <strong>Demo mode</strong> to simulate summaries without a backend.</div>
+      </div>
+    </section>
+  </main>
+
+  <template id="tpl-card">
+    <article class="card p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-sm text-gray-500">IP</div>
+          <div class="font-mono font-semibold text-lg" data-ip>—</div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-gray-500">Country</div>
+          <div class="font-medium" data-country>—</div>
+        </div>
+      </div>
+      <div class="mt-3">
+        <div class="text-sm text-gray-500">Summary</div>
+        <p class="mt-1 text-sm" data-summary>—</p>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2" data-ports></div>
+      <details class="mt-3">
+        <summary class="text-sm text-gray-600 cursor-pointer">Raw</summary>
+        <pre class="mt-2 bg-gray-50 p-2 rounded text-xs overflow-x-auto" data-raw></pre>
+      </details>
+    </article>
+  </template>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    const fileInput = $('#file');
+    const ta = $('#json');
+    const btnRun = $('#btn-run');
+    const btnClear = $('#btn-clear');
+    const btnCopy = $('#btn-copy-json');
+    const btnDownload = $('#btn-download-json');
+    const btnLoadSample = $('#btn-load-sample');
+    const results = $('#results');
+    const status = $('#status');
+    const modelSel = $('#model');
+    const tempRange = $('#temperature');
+    const tempVal = $('#tempVal');
+    const endpoint = $('#endpoint');
+    const demoMode = $('#demoMode');
+
+    const setStatus = (msg, isError=false) => {
+      status.textContent = msg || '';
+      status.className = `text-sm ${isError ? 'text-red-600' : 'text-gray-600'}`;
+    };
+
+    const parseJSON = async () => {
+      // Prefer file if present
+      if (fileInput.files && fileInput.files[0]) {
+        const txt = await fileInput.files[0].text();
+        try { return JSON.parse(txt); } catch (e) { throw new Error('Uploaded file is not valid JSON'); }
+      }
+      // Fallback to textarea
+      const txt = ta.value.trim();
+      if (!txt) throw new Error('Provide JSON via upload or paste');
+      try { return JSON.parse(txt); } catch (e) { throw new Error('Pasted JSON is not valid'); }
+    };
+
+    const toArray = (data) => Array.isArray(data) ? data : (data?.hosts || data?.records || []);
+
+    const renderCard = (obj) => {
+      const tpl = document.getElementById('tpl-card');
+      const node = tpl.content.cloneNode(true);
+      const ip = obj.ip || obj.host?.ip || '—';
+      const country = obj.location?.country || obj.host?.location?.country || '—';
+      const summary = obj.summary?.text || obj.summary || '—';
+      const ports = obj.open_ports || obj.services?.map(s => s.port) || [];
+      node.querySelector('[data-ip]').textContent = ip;
+      node.querySelector('[data-country]').textContent = country;
+      node.querySelector('[data-summary]').textContent = summary;
+      const portsWrap = node.querySelector('[data-ports]');
+      (ports || []).forEach(p => {
+        const span = document.createElement('span');
+        span.className = 'chip';
+        span.textContent = `:${p}`;
+        portsWrap.appendChild(span);
+      });
+      node.querySelector('[data-raw]').textContent = JSON.stringify(obj, null, 2);
+      results.appendChild(node);
+    };
+
+    const renderMany = (arr) => {
+      results.innerHTML = '';
+      arr.forEach(renderCard);
+    };
+
+    const example = [
+      {
+        ip: '93.184.216.34',
+        open_ports: [80, 443],
+        location: { country: 'US' },
+        services: [{port:80, protocol:'http'}, {port:443, protocol:'https'}]
+      },
+      {
+        ip: '203.0.113.5',
+        open_ports: [22],
+        location: { country: 'DE' },
+        services: [{port:22, protocol:'ssh'}]
+      }
+    ];
+
+    const demoSummarize = (records) => {
+      // Lightweight mock so the UI works without a backend
+      return records.map(r => ({
+        ...r,
+        summary: {
+          text: `Host ${r.ip || 'unknown'} exposes ${Array.isArray(r.open_ports) ? r.open_ports.length : 0} port(s).` +
+                (r.location?.country ? ` Country: ${r.location.country}.` : '')
+        }
+      }));
+    };
+
+    const callBackend = async (records) => {
+      const body = { records, model: modelSel.value, temperature: Number(tempRange.value) };
+      const res = await fetch(endpoint.value, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      return await res.json();
+    };
+
+    // Events
+    tempVal.textContent = `(current: ${tempRange.value})`;
+    tempRange.addEventListener('input', () => tempVal.textContent = `(current: ${tempRange.value})`);
+
+    btnLoadSample.addEventListener('click', (e) => {
+      e.preventDefault();
+      ta.value = JSON.stringify(example, null, 2);
+      setStatus('Loaded sample data.');
+    });
+
+    btnRun.addEventListener('click', async () => {
+      try {
+        setStatus('Parsing input…');
+        const data = await parseJSON();
+        const records = toArray(data);
+        if (!Array.isArray(records) || records.length === 0) throw new Error('Expected a non-empty array of records.');
+
+        setStatus(demoMode.checked ? 'Demo mode: generating mock summaries…' : 'Calling backend…');
+        const out = demoMode.checked ? demoSummarize(records) : await callBackend(records);
+        const items = out.records || out; // support either {records:[...]} or bare array
+        renderMany(items);
+        setStatus(`Done. Rendered ${items.length} record(s).`);
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || 'Something went wrong.', true);
+      }
+    });
+
+    btnClear.addEventListener('click', () => {
+      results.innerHTML = '';
+      setStatus('Cleared.');
+    });
+
+    btnCopy.addEventListener('click', async () => {
+      const cards = $$('#results article pre');
+      const arr = Array.from(cards).map(pre => JSON.parse(pre.textContent));
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(arr, null, 2));
+        setStatus('Copied JSON to clipboard.');
+      } catch (e) {
+        setStatus('Copy failed. Select & copy manually.', true);
+      }
+    });
+
+    btnDownload.addEventListener('click', () => {
+      const cards = $$('#results article pre');
+      const arr = Array.from(cards).map(pre => JSON.parse(pre.textContent));
+      const blob = new Blob([JSON.stringify(arr, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'summaries.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded summaries.json');
+    });
+
+    // Keyboard: Cmd/Ctrl + Enter to run
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') btnRun.click();
+    });
+  </script>
+</body>
+</html>
