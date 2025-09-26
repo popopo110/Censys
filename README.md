@@ -37,9 +37,6 @@ uvicorn main:app --reload --port 8000
 "pip install fastapi uvicorn[standard] pydantic>=2
 uvicorn main:app --host 0.0.0.0 --port 8000"
 
-## ▶️ Run (Hosted Preview via GitHub Codespaces)
-**Availability window:** 09/25/2025 – 10/25/2025  
-**Live base URL:** https://crispy-eureka-g97x57gx5pqfvqpq-8000.app.github.dev
 
 
 
