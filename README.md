@@ -31,8 +31,8 @@ uvicorn main:app --reload --port 8000
 
 
 ## Run from Codespace
-1. Choose Code from repo
-2. Select CodeSpace -> Create CodeSpace in main 
+1. Select "Code" from repository
+2. Select "CodeSpace" -> "Create CodeSpace in main" 
 3. In terminal run: 
 "pip install fastapi uvicorn[standard] pydantic>=2
 uvicorn main:app --host 0.0.0.0 --port 8000"
